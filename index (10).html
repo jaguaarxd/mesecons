@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Order Router — a digiline storage system, explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAFAF7;
+    --panel:#F1F0EA;
+    --panel-deep:#E9E7DF;
+    --line:#DEDCD2;
+    --ink:#1E1D1A;
+    --ink-soft:#726F63;
+    --ink-faint:#A7A392;
+    --accent:#2F58C6;
+    --accent-wash:#EAEFFC;
+    --good:#3C7A4E;
+    --good-wash:#E9F3EB;
+    --warn:#B4552D;
+    --warn-wash:#FBEBE3;
+    --radius:3px;
+    --content-w:720px;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", sans-serif;
+    font-size:16.5px;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  ::selection{ background:var(--accent-wash); color:var(--ink); }
+
+  a{ color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px; }
+  a:focus-visible, button:focus-visible, summary:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+  }
+
+  code, pre, .mono{ font-family:"IBM Plex Mono", monospace; }
+
+  code{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:0.05em 0.35em;
+    font-size:0.88em;
+  }
+
+  .shell{
+    display:grid;
+    grid-template-columns: 230px 1fr;
+    max-width:1200px;
+    margin:0 auto;
+    gap:40px;
+  }
+
+  nav.toc{
+    padding:64px 0 64px 32px;
+    position:sticky;
+    top:0;
+    align-self:start;
+    height:100vh;
+    overflow-y:auto;
+  }
+
+  nav.toc .mark{
+    font-family:"IBM Plex Sans Condensed", sans-serif;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:0.02em;
+    color:var(--ink-faint);
+    margin-bottom:14px;
+  }
+
+  nav.toc .group{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    color:var(--ink-faint);
+    margin:20px 0 4px 16px;
+  }
+  nav.toc .group:first-of-type{ margin-top:0; }
+
+  nav.toc ol{
+    list-style:none;
+    margin:0; padding:0;
+    counter-reset:sec;
+    border-left:1px solid var(--line);
+  }
+
+  nav.toc li{ counter-increment:sec; margin:0; }
+
+  nav.toc a{
+    display:block;
+    color:var(--ink-soft);
+    text-decoration:none;
+    font-size:13px;
+    padding:5px 0 5px 16px;
+    margin-left:-1px;
+    border-left:1px solid transparent;
+    line-height:1.3;
+  }
+
+  nav.toc a:before{
+    content: counter(sec, decimal-leading-zero) "  ";
+    color:var(--ink-faint);
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+  }
+
+  nav.toc a:hover{ color:var(--ink); border-left-color:var(--ink-faint); }
+
+  main{ padding:64px 32px 120px 0; max-width:calc(var(--content-w) + 32px); }
+  .measure{ max-width:var(--content-w); }
+
+  header.hero{ margin-bottom:56px; }
+  header.hero h1{
+    font-family:"IBM Plex Sans Condensed", sans-serif;
+    font-weight:700;
+    font-size:44px;
+    line-height:1.08;
+    letter-spacing:-0.01em;
+    margin:0 0 18px 0;
+    max-width:11.5em;
+  }
+  header.hero p.lede{ font-size:18px; color:var(--ink-soft); max-width:34em; margin:0 0 4px 0; }
+  header.hero .meta{ margin-top:22px; font-size:13px; color:var(--ink-faint); font-family:"IBM Plex Mono", monospace; }
+
+  figure{ margin:32px 0; }
+  figure img{ width:100%; display:block; border:1px solid var(--line); border-radius:var(--radius); }
+  figure figcaption{ margin-top:9px; font-size:13.5px; color:var(--ink-faint); font-style:italic; max-width:var(--content-w); }
+  figure.wide{ margin-left:0; }
+
+  section{ padding-top:56px; margin-top:56px; border-top:1px solid var(--line); }
+  section:first-of-type{ border-top:none; margin-top:0; padding-top:0; }
+  section > .tag{ font-family:"IBM Plex Mono", monospace; font-size:12.5px; color:var(--accent); margin-bottom:10px; }
+  section h2{ font-family:"IBM Plex Sans Condensed", sans-serif; font-weight:700; font-size:27px; letter-spacing:-0.005em; margin:0 0 16px 0; }
+  section h3{ font-size:16px; font-weight:600; margin:36px 0 4px 0; font-family:"IBM Plex Mono", monospace; color:var(--ink); }
+  section h3 .fn{ color:var(--accent); }
+
+  p{ margin:0 0 16px 0; max-width:var(--content-w); }
+  ul, ol{ margin:0 0 16px 0; padding-left:22px; max-width:var(--content-w); }
+  li{ margin-bottom:6px; }
+
+  .code{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    margin:14px 0 24px 0;
+    overflow-x:auto;
+  }
+  .code .filehead{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 14px; border-bottom:1px solid var(--line);
+    font-family:"IBM Plex Mono", monospace; font-size:12px; color:var(--ink-soft);
+  }
+  .code pre{ margin:0; padding:16px 18px; font-size:13px; line-height:1.6; color:var(--ink); white-space:pre; overflow-x:auto; }
+
+  .callout{
+    border:1px solid var(--line); border-left:3px solid var(--accent);
+    background:var(--accent-wash); border-radius:var(--radius);
+    padding:16px 18px; margin:22px 0; max-width:var(--content-w);
+  }
+  .callout.good{ border-left-color:var(--good); background:var(--good-wash); }
+  .callout.warn{ border-left-color:var(--warn); background:var(--warn-wash); }
+  .callout p:last-child{ margin-bottom:0; }
+  .callout .label{ font-family:"IBM Plex Mono", monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:6px; display:block; }
+
+  table.fields{ width:100%; max-width:var(--content-w); border-collapse:collapse; margin:20px 0 26px 0; font-size:14.5px; }
+  table.fields th{ text-align:left; font-weight:600; font-size:12px; color:var(--ink-faint); padding:0 12px 8px 0; border-bottom:1px solid var(--line); }
+  table.fields td{ padding:9px 12px 9px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.fields td:first-child{ font-family:"IBM Plex Mono", monospace; font-size:13px; white-space:nowrap; }
+  table.fields tr:last-child td{ border-bottom:none; }
+
+  .flow{ display:flex; flex-wrap:wrap; align-items:center; gap:0; margin:28px 0 30px 0; max-width:var(--content-w); }
+  .flow .node{ font-family:"IBM Plex Mono", monospace; font-size:12.5px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:8px 12px; color:var(--ink); }
+  .flow .node.hi{ border-color:var(--accent); color:var(--accent); background:var(--accent-wash); }
+  .flow .arrow{ color:var(--ink-faint); padding:0 8px; font-size:14px; }
+
+  .divider-label{
+    font-family:"IBM Plex Mono", monospace; font-size:11.5px; color:var(--ink-faint);
+    margin:44px 0 -6px 0;
+  }
+
+  footer{ max-width:var(--content-w); padding:40px 0 0 0; margin-top:56px; border-top:1px solid var(--line); color:var(--ink-faint); font-size:13px; }
+
+  @media (max-width: 880px){
+    .shell{ grid-template-columns: 1fr; }
+    nav.toc{ display:none; }
+    main{ padding:40px 20px 100px 20px; }
+    header.hero h1{ font-size:32px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <nav class="toc" aria-label="Section index">
+    <div class="mark">CONTENTS</div>
+    <div class="group">MASTER · SETUP</div>
+    <ol>
+      <li><a href="#overview">The system, at a glance</a></li>
+      <li><a href="#memory">Persisted state</a></li>
+      <li><a href="#reverse-lookup">The reverse-lookup trick</a></li>
+      <li><a href="#ids">ensure_id / get_id</a></li>
+    </ol>
+    <div class="group">MASTER · STORAGE FORMAT</div>
+    <ol style="counter-reset:sec 4;">
+      <li><a href="#packing">parse/build_chest_string</a></li>
+      <li><a href="#slot-tracker">parse/build_slot_entry_string</a></li>
+      <li><a href="#chest-list">get_item_chest_list</a></li>
+      <li><a href="#oos">update_oos</a></li>
+    </ol>
+    <div class="group">MASTER · STOCK LOGIC</div>
+    <ol style="counter-reset:sec 8;">
+      <li><a href="#heal">heal_item</a></li>
+      <li><a href="#track-slot">track_slot</a></li>
+      <li><a href="#update-stock">update_stock</a></li>
+    </ol>
+    <div class="group">MASTER · SEARCH &amp; SCREENS</div>
+    <ol style="counter-reset:sec 11;">
+      <li><a href="#search">start_search / step_search</a></li>
+      <li><a href="#screens">draw_request_list</a></li>
+      <li><a href="#screens2">draw_request_input / stock</a></li>
+    </ol>
+    <div class="group">MASTER · MESSAGE HANDLING</div>
+    <ol style="counter-reset:sec 14;">
+      <li><a href="#chest-msg">handle_chest_msg</a></li>
+      <li><a href="#book-parse">queue_book_order</a></li>
+    </ol>
+    <div class="group">MASTER · EVENT LOOP</div>
+    <ol style="counter-reset:sec 16;">
+      <li><a href="#ev-program">program</a></li>
+      <li><a href="#ev-tick">interrupt / tick</a></li>
+      <li><a href="#ev-filter">digiline / filter_to_main</a></li>
+      <li><a href="#ev-book">digiline / book</a></li>
+      <li><a href="#ev-final">digiline / final</a></li>
+      <li><a href="#ev-safety">digiline / safety…</a></li>
+      <li><a href="#ev-screens">digiline / screens</a></li>
+    </ol>
+    <div class="group">SIGNAL FILTER</div>
+    <ol style="counter-reset:sec 23;">
+      <li><a href="#filter-full">The whole script</a></li>
+    </ol>
+    <div class="group">CLOSING</div>
+    <ol style="counter-reset:sec 24;">
+      <li><a href="#budget">The memory budget</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <header class="hero measure">
+      <h1>The Order Router</h1>
+      <p class="lede">A complete, line-by-line walkthrough of both scripts running this storage system: the master LuaController and its companion signal filter — how they track thousands of items and fulfil requests from a touchscreen or a written book inside a 100,000-byte memory budget.</p>
+      <div class="meta">master.lua + signal_filter.lua · mesecons_luacontroller · digilines</div>
+    </header>
+
+    <figure class="wide">
+      <img src="images/overview1.jpg" alt="Rows of numbered storage chests, each with its own injector, connected by a blue digiline/tube network">
+      <figcaption>The chest array. Each numbered chest holds one slice of the total stock for whatever items have been routed to it; a small injector sits underneath, ready to pull a named item out on command.</figcaption>
+    </figure>
+
+    <section id="overview">
+      <div class="tag">01</div>
+      <h2>The system, at a glance</h2>
+      <p>Two scripts, two LuaControllers. <strong>master</strong> holds every byte of persistent state and makes every decision. <strong>signal filter</strong> holds nothing — it exists purely so master doesn't get a separate event for every single chest in a large array.</p>
+      <div class="flow">
+        <span class="node hi">touchscreen</span><span class="arrow">→</span>
+        <span class="node">Take</span><span class="arrow">→</span>
+        <span class="node hi">book order</span><span class="arrow">→</span>
+        <span class="node">queued pull</span><span class="arrow">→</span>
+        <span class="node hi">final chest</span><span class="arrow">→</span>
+        <span class="node">delivered</span>
+      </div>
+      <p>One fact governs almost every line in both files: a LuaController re-runs its <em>entire script</em>, top to bottom, on every single event it receives. Only the <code>mem</code> table survives between events — every local variable and every function is rebuilt from nothing, every time. Nothing below makes sense without that in mind.</p>
+    </section>
+
+    <section id="memory">
+      <div class="tag">02</div>
+      <h2>Persisted state</h2>
+      <p>The whole file opens with the same shape repeated: <code>if not mem.X then mem.X = ... end</code>. This is the standard way a LuaController initialises memory — it only sets a default the first time a key is missing, so it's safe to run after every restart without wiping anything out.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span><span>lines 1–34</span></div>
+        <pre>local SCREEN_REQUEST = "screen_request"
+local SCREEN_STOCK   = "screen_stock"
+
+if not mem.NAME_TO_ID then mem.NAME_TO_ID = {} end
+if not mem.NEXT_ID then mem.NEXT_ID = 1 end
+if not mem.TOTALS then mem.TOTALS = {} end
+if not mem.ITEMS then mem.ITEMS = {} end
+if not mem.STATUS then mem.STATUS = {} end
+if not mem.SLOT_TRACKER then mem.SLOT_TRACKER = {} end
+if not mem.OOS then mem.OOS = {} end
+if not mem.OOS_SET then mem.OOS_SET = {} end
+
+if not mem.SEARCH_IDX then mem.SEARCH_IDX = {} end
+if not mem.REQUEST_PAGE then mem.REQUEST_PAGE = 1 end
+if not mem.STOCK_PAGE then mem.STOCK_PAGE = 1 end
+
+if not mem.SELECTED_ITEM then mem.SELECTED_ITEM = nil end
+if not mem.INPUT_ERROR then mem.INPUT_ERROR = "" end
+if not mem.SEARCH_QUERY then mem.SEARCH_QUERY = "" end
+if not mem.MODE then mem.MODE = "home" end
+
+if mem.NEEDS_REDRAW == nil then mem.NEEDS_REDRAW = false end
+if mem.INITIAL_DRAW_DONE == nil then mem.INITIAL_DRAW_DONE = false end
+if mem.SEARCH_OVERFLOW == nil then mem.SEARCH_OVERFLOW = false end
+
+if not mem.SEARCH_SCAN_POS then mem.SEARCH_SCAN_POS = 0 end
+if mem.SEARCH_ACTIVE == nil then mem.SEARCH_ACTIVE = false end
+
+if not mem.TICK_COUNT then mem.TICK_COUNT = 0 end
+if mem.TICK_PENDING == nil then mem.TICK_PENDING = false end
+
+if not mem.EXPECT_USER then mem.EXPECT_USER = {} end
+if not mem.EXPECT_HEAL then mem.EXPECT_HEAL = {} end
+if not mem.HEAL_QUEUE then mem.HEAL_QUEUE = {} end
+if not mem.HEAL_TARGET then mem.HEAL_TARGET = {} end
+if not mem.HEAL_INCOMING then mem.HEAL_INCOMING = {} end</pre>
+      </div>
+      <table class="fields">
+        <tr><th>field</th><th>what it holds</th></tr>
+        <tr><td>SCREEN_REQUEST / SCREEN_STOCK</td><td>the two digiline channel names the touchscreens listen on — plain locals, not persisted, since they never change</td></tr>
+        <tr><td>NAME_TO_ID</td><td>every item name seen so far, mapped to a small integer id</td></tr>
+        <tr><td>NEXT_ID</td><td>the next id to hand out — counts up only, never reused</td></tr>
+        <tr><td>TOTALS</td><td>id → total quantity across every chest</td></tr>
+        <tr><td>ITEMS</td><td>id → packed string of which chest holds how much</td></tr>
+        <tr><td>STATUS</td><td>id → 1 (confirmed stackable) or 2 (confirmed unstackable)</td></tr>
+        <tr><td>SLOT_TRACKER</td><td>per chest, a packed record feeding the stackability heuristic</td></tr>
+        <tr><td>OOS / OOS_SET</td><td>the out-of-stock list, plus a shadow set for O(1) membership checks</td></tr>
+        <tr><td>SEARCH_IDX / SEARCH_QUERY / SEARCH_SCAN_POS / SEARCH_ACTIVE / SEARCH_OVERFLOW</td><td>state for the paged, non-blocking search (see §11)</td></tr>
+        <tr><td>REQUEST_PAGE / STOCK_PAGE</td><td>which page of each screen is currently shown</td></tr>
+        <tr><td>SELECTED_ITEM / INPUT_ERROR</td><td>which item is mid-Take on the request screen, and any validation message showing</td></tr>
+        <tr><td>MODE</td><td><code>"home"</code> or <code>"search"</code> — which list the request screen is currently paging through</td></tr>
+        <tr><td>NEEDS_REDRAW / INITIAL_DRAW_DONE</td><td>redraw scheduling flags</td></tr>
+        <tr><td>TICK_PENDING</td><td>true while a <code>tick</code> interrupt is already scheduled, so it's never double-booked</td></tr>
+        <tr><td>EXPECT_USER / EXPECT_HEAL / HEAL_QUEUE / HEAL_TARGET / HEAL_INCOMING</td><td>the delivery and consolidation bookkeeping (see §9–10)</td></tr>
+      </table>
+    </section>
+
+    <section id="reverse-lookup">
+      <div class="tag">03</div>
+      <h2>The reverse-lookup trick</h2>
+      <p>The script needs to go both directions: name → id (to look up an item someone typed into a book), and id → name (to know what to put on a button, or tell an injector to fetch). The obvious way is two persisted tables, one each direction — but that stores every item's name <em>twice</em> in the saved data, and names are the single biggest thing in this table.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span><span>right after the mem block</span></div>
+        <pre>local NAMES = {}
+for nm, nid in pairs(mem.NAME_TO_ID) do NAMES[nid] = nm end</pre>
+      </div>
+      <p>Only <code>NAME_TO_ID</code> is ever saved. <code>NAMES</code> is a plain <code>local</code>, rebuilt by looping over it at the top of every execution. Since the whole file re-runs on every event regardless, this loop rides along on a cost that's already being paid — it doesn't add a new one. What it buys back is real: every item name now exists once in the persisted table, not twice.</p>
+      <div class="callout good">
+        <span class="label">why this is safe</span>
+        <p>IDs are handed out once, in <code>ensure_id</code>, and never reused or removed. The inversion is therefore always complete and correct — there's no id that <code>NAME_TO_ID</code> knows about that <code>NAMES</code> could be missing or wrong for.</p>
+      </div>
+    </section>
+
+    <section id="ids">
+      <div class="tag">04</div>
+      <h2><span class="fn">ensure_id</span> / <span class="fn">get_id</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function get_id(name)
+    return mem.NAME_TO_ID[name]
+end
+
+local function ensure_id(name)
+    local id = mem.NAME_TO_ID[name]
+    if not id then
+        id = mem.NEXT_ID
+        mem.NEXT_ID = id + 1
+        mem.NAME_TO_ID[name] = id
+        NAMES[id] = name
+    end
+    return id
+end</pre>
+      </div>
+      <p><code>get_id</code> is a read-only lookup, used where a missing item should just mean "nothing to do." <code>ensure_id</code> is the only place a new id is ever created: it hands out the next free integer, writes it into the persisted <code>NAME_TO_ID</code>, and mirrors it into the local <code>NAMES</code> immediately so the current event can use the name right away without waiting for the next execution to rebuild the table.</p>
+    </section>
+
+    <figure class="wide">
+      <img src="images/rows.jpg" alt="A long row of chests and injectors along a tube line">
+      <figcaption>One item can be spread across many numbered chests. ITEMS[id] has to describe all of them without costing a full Lua table per chest.</figcaption>
+    </figure>
+
+    <div class="divider-label">MASTER · STORAGE FORMAT</div>
+
+    <section id="packing">
+      <div class="tag">05</div>
+      <h2><span class="fn">parse_chest_string</span> / <span class="fn">build_chest_string</span></h2>
+      <p>A single item can sit in several chests at once. Instead of a nested Lua table like <code>{[3] = 64, [7] = 32}</code> — which costs its own bytes for every level of structure once saved — <code>ITEMS[id]</code> holds one flat string: <code>"3:64,7:32"</code>.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function parse_chest_string(s)
+    local t = {}
+    if s and s ~= "" then
+        local pos = 1
+        local len = #s
+        while pos &lt;= len do
+            local colon = string.find(s, ":", pos, true)
+            if not colon then break end
+            local comma = string.find(s, ",", colon, true)
+            local num_str = string.sub(s, pos, colon - 1)
+            local qty_str
+            if comma then
+                qty_str = string.sub(s, colon + 1, comma - 1)
+                pos = comma + 1
+            else
+                qty_str = string.sub(s, colon + 1)
+                pos = len + 1
+            end
+            local num = tonumber(num_str)
+            local qty = tonumber(qty_str)
+            if num and qty then
+                t[num] = qty
+            end
+        end
+    end
+    return t
+end
+
+local function build_chest_string(t)
+    local parts = {}
+    for num, qty in pairs(t) do
+        table.insert(parts, num..":"..qty)
+    end
+    return table.concat(parts, ",")
+end</pre>
+      </div>
+      <p><code>parse_chest_string</code> walks the string by hand — finding each <code>:</code> and <code>,</code> with <code>string.find</code> rather than a Lua pattern — and returns an ordinary <code>{chest_num = qty}</code> table. <code>build_chest_string</code> does the reverse: given that table, it produces the packed string to actually save. Everywhere else in the script only ever sees the unpacked table; the packed format exists purely at rest.</p>
+    </section>
+
+    <section id="slot-tracker">
+      <div class="tag">06</div>
+      <h2><span class="fn">parse_slot_entry_string</span> / <span class="fn">build_slot_entry_string</span></h2>
+      <p>The same idea, taken further, for <code>SLOT_TRACKER</code>. Each tracked entry used to be a small table with named fields — <code>{slot = 4, count = 1, hits = 0}</code>. Saved literally, those three field names repeat for every tracked item in every chest. Packed as <code>"id:slot:count:hits"</code>, the field names never appear in storage — only the numbers do.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function parse_slot_entry_string(s)
+    local t = {}
+    if s and s ~= "" then
+        local pos = 1
+        local len = #s
+        while pos &lt;= len do
+            local c1 = string.find(s, ":", pos, true)
+            if not c1 then break end
+            local c2 = string.find(s, ":", c1 + 1, true)
+            if not c2 then break end
+            local c3 = string.find(s, ":", c2 + 1, true)
+            if not c3 then break end
+            local comma = string.find(s, ",", c3, true)
+            local id_str = string.sub(s, pos, c1 - 1)
+            local slot_str = string.sub(s, c1 + 1, c2 - 1)
+            local count_str = string.sub(s, c2 + 1, c3 - 1)
+            local hits_str
+            if comma then
+                hits_str = string.sub(s, c3 + 1, comma - 1)
+                pos = comma + 1
+            else
+                hits_str = string.sub(s, c3 + 1)
+                pos = len + 1
+            end
+            local id = tonumber(id_str)
+            if id then
+                t[id] = {
+                    slot = tonumber(slot_str),
+                    count = tonumber(count_str),
+                    hits = tonumber(hits_str),
+                }
+            end
+        end
+    end
+    return t
+end
+
+local function build_slot_entry_string(t)
+    local parts = {}
+    for id, e in pairs(t) do
+        table.insert(parts, id..":"..(e.slot or 0)..":"..(e.count or 0)..":"..(e.hits or 0))
+    end
+    return table.concat(parts, ",")
+end</pre>
+      </div>
+      <p>Four colon-delimited fields per entry (<code>id</code>, <code>slot</code>, <code>count</code>, <code>hits</code>) instead of three named table keys. Once unpacked, <code>track_slot</code> (§9) works with plain <code>track.slot</code>, <code>track.count</code>, <code>track.hits</code> field access — the packing is invisible to every caller.</p>
+    </section>
+
+    <section id="chest-list">
+      <div class="tag">07</div>
+      <h2><span class="fn">get_item_chest_list</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function get_item_chest_list(id)
+    local list = {}
+    local t = parse_chest_string(mem.ITEMS[id])
+    for num, qty in pairs(t) do
+        if qty and qty > 0 then
+            table.insert(list, { num = num, qty = qty })
+        end
+    end
+    return list
+end</pre>
+      </div>
+      <p>Turns an item's packed chest string into a plain array of <code>{num=, qty=}</code> entries — the shape both <code>heal_item</code> and the Take/book pull logic actually want to sort and iterate over.</p>
+    </section>
+
+    <section id="oos">
+      <div class="tag">08</div>
+      <h2><span class="fn">update_oos</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function update_oos(id, total_qty)
+    if total_qty == 0 then
+        if not mem.OOS_SET[id] then
+            mem.OOS_SET[id] = true
+            table.insert(mem.OOS, id)
+        end
+    elseif total_qty &gt; 0 and mem.OOS_SET[id] then
+        mem.OOS_SET[id] = nil
+        for idx, oos_id in ipairs(mem.OOS) do
+            if oos_id == id then
+                table.remove(mem.OOS, idx)
+                break
+            end
+        end
+    end
+end</pre>
+      </div>
+      <p><code>OOS</code> is the ordered list the stock screen actually paginates through. <code>OOS_SET</code> is a shadow table that turns "is this id already on the list?" into one lookup instead of a scan — the only reason the removal branch still has to loop is that removing from the middle of an array can't be done in O(1) in plain Lua.</p>
+    </section>
+
+    <figure class="wide">
+      <img src="images/injectors.jpg" alt="A pair of LuaControllers wired into the tube network with a blue block nearby">
+      <figcaption>Where the healing logic actually acts — a pull command leaves here and a real item moves through the tubes.</figcaption>
+    </figure>
+
+    <div class="divider-label">MASTER · STOCK LOGIC</div>
+
+    <section id="heal">
+      <div class="tag">09</div>
+      <h2><span class="fn">heal_item</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function heal_item(id)
+    if mem.STATUS[id] == 2 then return end
+
+    local total = mem.TOTALS[id]
+    if not total or total == 0 then return end
+
+    local partial_chests = {}
+    for _, entry in ipairs(get_item_chest_list(id)) do
+        local loose = entry.qty % 99
+        if loose &gt; 0 then
+            table.insert(partial_chests, { num = entry.num, loose = loose })
+        end
+    end
+
+    if #partial_chests &gt;= 2 then
+        table.sort(partial_chests, function(a, b) return a.num &lt; b.num end)
+
+        mem.HEAL_TARGET[id] = partial_chests[1].num
+
+        for i = 2, #partial_chests do
+            local sec = partial_chests[i]
+            local inj_channel = "i" .. sec.num
+
+            mem.EXPECT_HEAL[id] = (mem.EXPECT_HEAL[id] or 0) + sec.loose
+            digiline_send("main_to_filter", { target = inj_channel, payload = { name = NAMES[id], count = sec.loose } })
+        end
+    end
+end</pre>
+      </div>
+      <p>Line 1 is a hard stop: an item already flagged <code>STATUS == 2</code> — confirmed unstackable, typically a tool — never gets a consolidation attempt. Otherwise: <code>99</code> is the assumed max stack size, so <code>entry.qty % 99</code> is whatever's "left over" in a chest beyond clean full stacks. Once two or more chests have loose leftovers, the lowest-numbered one becomes <code>HEAL_TARGET</code>, and every other chest's loose amount gets pulled — via the ordinary <code>"i&lt;num&gt;"</code> injector, relayed through the filter — toward it.</p>
+    </section>
+
+    <section id="track-slot">
+      <div class="tag">10</div>
+      <h2><span class="fn">track_slot</span></h2>
+      <p>The script never hardcodes which items stack. It watches behaviour: a stack bigger than one, ever, proves an item is stackable, permanently. Single copies landing in different slots without ever combining is read as proof it's <em>not</em>.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function track_slot(chest_num, id, delta, to_slot)
+    if delta &gt; 1 then
+        mem.STATUS[id] = 1
+        local raw = mem.SLOT_TRACKER[chest_num]
+        if raw then
+            local chest_tr = parse_slot_entry_string(raw)
+            chest_tr[id] = nil
+            mem.SLOT_TRACKER[chest_num] = next(chest_tr) and build_slot_entry_string(chest_tr) or nil
+        end
+        return
+    end
+
+    if mem.STATUS[id] == 1 or mem.STATUS[id] == 2 then return end
+
+    local chest_tr = parse_slot_entry_string(mem.SLOT_TRACKER[chest_num])
+    local track = chest_tr[id]
+
+    if not track then
+        chest_tr[id] = { slot = to_slot, count = delta, hits = 0 }
+        mem.SLOT_TRACKER[chest_num] = build_slot_entry_string(chest_tr)
+        return
+    end
+
+    if track.slot == to_slot then
+        track.count = track.count + delta
+        if track.count &gt;= 2 then
+            mem.STATUS[id] = 1
+            chest_tr[id] = nil
+            mem.SLOT_TRACKER[chest_num] = next(chest_tr) and build_slot_entry_string(chest_tr) or nil
+        else
+            mem.SLOT_TRACKER[chest_num] = build_slot_entry_string(chest_tr)
+        end
+        return
+    end
+
+    if track.count == 1 and delta == 1 then
+        track.hits = track.hits + 1
+        if track.hits &gt;= 2 then
+            mem.STATUS[id] = 2
+            chest_tr[id] = nil
+            mem.SLOT_TRACKER[chest_num] = next(chest_tr) and build_slot_entry_string(chest_tr) or nil
+            return
+        end
+    end
+
+    track.slot = to_slot
+    track.count = delta
+    mem.SLOT_TRACKER[chest_num] = build_slot_entry_string(chest_tr)
+end</pre>
+      </div>
+      <p>Read it as three cases in order. <strong>A real stack arrived</strong> (<code>delta &gt; 1</code>): mark stackable for good, forget any tracking data for this id in this chest — there's nothing left to prove. <strong>Already decided</strong> (<code>STATUS</code> is 1 or 2): stop immediately, don't re-run the heuristic. <strong>Otherwise</strong>: this is a single-item delivery to a specific slot. If it's the first one seen, start tracking it. If a second single copy lands in the <em>same</em> slot, that's really a stack forming — mark stackable. If it lands in a <em>different</em> slot twice in a row, that's the unstackable signature — mark it and stop watching.</p>
+      <div class="callout">
+        <span class="label">why the early exit matters</span>
+        <p>Without the <code>STATUS[id] == 1 or == 2</code> check returning immediately, this whole heuristic would re-run on every single-item delivery for every item, forever — even ones already proven either way. It's the difference between paying this cost once per item, ever, and paying it on every event.</p>
+      </div>
+    </section>
+
+    <section id="update-stock">
+      <div class="tag">11</div>
+      <h2><span class="fn">update_stock</span></h2>
+      <p>The one function every chest report eventually reaches — the actual ledger.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function update_stock(chest_num, id, delta, action_type, to_slot)
+    local t = parse_chest_string(mem.ITEMS[id])
+    local current_in_chest = t[chest_num] or 0
+    local new_in_chest = math.max(0, current_in_chest + delta)
+    local actual_diff = new_in_chest - current_in_chest
+
+    if delta &gt; 0 then
+        if mem.HEAL_INCOMING[id] and mem.HEAL_INCOMING[id] &gt; 0 then
+            local incoming = math.min(mem.HEAL_INCOMING[id], delta)
+            mem.HEAL_INCOMING[id] = mem.HEAL_INCOMING[id] - incoming
+
+            if mem.HEAL_TARGET[id] and chest_num &gt; mem.HEAL_TARGET[id] then
+                mem.STATUS[id] = 2
+                mem.HEAL_TARGET[id] = nil
+            end
+
+            if mem.HEAL_INCOMING[id] &lt;= 0 then
+                mem.HEAL_INCOMING[id] = nil
+                mem.HEAL_TARGET[id] = nil
+            end
+        end
+
+        if delta &gt; 1 then
+            mem.STATUS[id] = 1
+            if mem.HEAL_TARGET[id] then mem.HEAL_TARGET[id] = nil end
+        end
+    end
+
+    if new_in_chest &gt; 0 then
+        t[chest_num] = new_in_chest
+    else
+        t[chest_num] = nil
+    end
+
+    local packed = build_chest_string(t)
+    mem.ITEMS[id] = (packed ~= "") and packed or nil
+
+    if to_slot then
+        if delta &gt; 0 then
+            track_slot(chest_num, id, delta, to_slot)
+        elseif delta &lt; 0 then
+            local raw = mem.SLOT_TRACKER[chest_num]
+            if raw then
+                local chest_tr = parse_slot_entry_string(raw)
+                local tr = chest_tr[id]
+                if tr and tr.slot == to_slot then
+                    tr.count = math.max(0, tr.count + delta)
+                    if tr.count == 0 then
+                        chest_tr[id] = nil
+                    end
+                    mem.SLOT_TRACKER[chest_num] = next(chest_tr) and build_slot_entry_string(chest_tr) or nil
+                end
+            end
+        end
+    end
+
+    mem.TOTALS[id] = math.max(0, (mem.TOTALS[id] or 0) + actual_diff)
+    update_oos(id, mem.TOTALS[id])
+
+    if delta &lt; 0 and mem.PENDING_PULL[id] and mem.PENDING_PULL[id] &gt; 0 then
+        local taken = math.min(mem.PENDING_PULL[id], -actual_diff)
+        mem.PENDING_PULL[id] = mem.PENDING_PULL[id] - taken
+        if mem.PENDING_PULL[id] &lt;= 0 then mem.PENDING_PULL[id] = nil end
+    end
+
+    local in_q = false
+    for _, q_id in ipairs(mem.HEAL_QUEUE) do
+        if q_id == id then in_q = true break end
+    end
+    if not in_q then
+        table.insert(mem.HEAL_QUEUE, id)
+    end
+
+    mem.NEEDS_REDRAW = true
+    schedule_tick(0.1)
+end</pre>
+      </div>
+      <p>In order: <strong>clamp</strong> — a chest's tracked quantity can never be pushed below zero, and <code>actual_diff</code> is the real change after that clamp, not the raw requested one. <strong>Bounce check</strong> — if a heal was in flight for this item and it landed in a chest numbered <em>past</em> the intended target, that's read as the item refusing to stack where expected, so it gets flagged unstackable right there. <strong>Absolute override</strong> — any stack bigger than one, seen anywhere, proves stackable outright and cancels any heal in progress. <strong>Re-pack and save</strong> the chest map. <strong>Feed the slot heuristic</strong> from §10, in either direction. <strong>Update the running total</strong> and the out-of-stock list. <strong>Release a pending-pull reservation</strong> if this take confirms one (see §15's callout). <strong>Queue for the heal pass</strong> if not already queued. And finally, mark the screen dirty and ask for a redraw next tick — never immediately, so several rapid reports in a row cost one redraw, not several.</p>
+    </section>
+
+    <figure class="wide">
+      <img src="images/bookintake.jpg" alt="A small screen and digiline injector unit standing alone in the sand">
+      <figcaption>One of the request-screen units. Every button on it is drawn fresh from mem.TOTALS on demand.</figcaption>
+    </figure>
+
+    <div class="divider-label">MASTER · SEARCH &amp; SCREENS</div>
+
+    <section id="search">
+      <div class="tag">12</div>
+      <h2><span class="fn">start_search</span> / <span class="fn">step_search</span></h2>
+      <p>Scanning every known item name against a query in one shot doesn't scale — a single event has a limited instruction budget. So it runs in chunks of <code>SEARCH_CHUNK</code> (400) items per tick.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function start_search()
+    mem.SEARCH_IDX = {}
+    mem.REQUEST_PAGE = 1
+    mem.SEARCH_OVERFLOW = false
+    mem.SEARCH_SCAN_POS = 0
+
+    local q = mem.SEARCH_QUERY or ""
+    mem.SEARCH_ACTIVE = (#q &gt;= 2)
+    if mem.SEARCH_ACTIVE then
+        schedule_tick(0.1)
+    end
+end
+
+local function step_search()
+    if not mem.SEARCH_ACTIVE then return end
+
+    local q_lower = string.lower(mem.SEARCH_QUERY or "")
+    local total_items = mem.NEXT_ID - 1
+    local last = math.min(mem.SEARCH_SCAN_POS + SEARCH_CHUNK, total_items)
+
+    for id = mem.SEARCH_SCAN_POS + 1, last do
+        local name = NAMES[id]
+        if string.find(string.lower(name), q_lower, 1, true) then
+            table.insert(mem.SEARCH_IDX, id)
+            if #mem.SEARCH_IDX &gt;= 100 then
+                mem.SEARCH_OVERFLOW = true
+                mem.SEARCH_ACTIVE = false
+                mem.NEEDS_REDRAW = true
+                return
+            end
+        end
+    end
+
+    mem.SEARCH_SCAN_POS = last
+    if mem.SEARCH_SCAN_POS &gt;= total_items then
+        mem.SEARCH_ACTIVE = false
+    end
+    mem.NEEDS_REDRAW = true
+end</pre>
+      </div>
+      <p><code>start_search</code> only actually activates for queries of two characters or more — anything shorter would match almost everything and isn't worth scanning for. <code>step_search</code> also hard-caps results at 100 matches, bailing out early with <code>SEARCH_OVERFLOW</code> set rather than building an unbounded results list.</p>
+    </section>
+
+    <section id="screens">
+      <div class="tag">13</div>
+      <h2><span class="fn">draw_request_list</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function draw_request_list()
+    if mem.SEARCH_OVERFLOW then
+        digiline_send(SCREEN_REQUEST,{
+            {command="clear"},
+            {command="set",width=10,height=6,fixed_size=true},
+            {command="add",element="label",X=2,Y=3,label="Too many results (Min 2 chars)"}
+        })
+        return
+    end
+
+    local is_search = (mem.MODE == "search")
+    local total_items = mem.NEXT_ID - 1
+    local total = is_search and #mem.SEARCH_IDX or total_items
+    local pages = math.max(1, math.ceil(total / ITEMS_PER_PAGE))
+    if mem.REQUEST_PAGE &gt; pages then mem.REQUEST_PAGE = pages end
+
+    local start = (mem.REQUEST_PAGE - 1) * ITEMS_PER_PAGE + 1
+    local finish = math.min(start + ITEMS_PER_PAGE - 1, total)
+
+    local ui = {
+        {command="clear"},
+        {command="set",width=10,height=6,fixed_size=true},
+        {command="add",element="label",X=0.3,Y=0.05,label="Unique Items: "..total_items},
+        {command="add",element="field",X=0.3,Y=0.6,W=5,H=1,name="query",label="",value=mem.SEARCH_QUERY},
+        {command="add",element="button",X=6,Y=0.4,W=1.8,H=0.7,name="btn_search",label="Search"},
+        {command="add",element="button",X=8,Y=0.1,W=1.8,H=0.6,name="btn_home",label="Home"},
+        {command="add",element="button",X=0.3,Y=6-BOTTOM_PADDING,W=2,H=0.6,name="btn_prev",label="&lt; Prev"},
+        {command="add",element="label",X=4.6,Y=6-BOTTOM_PADDING+0.1,label="Page "..mem.REQUEST_PAGE.."/"..pages},
+        {command="add",element="button",X=10-2.3,Y=6-BOTTOM_PADDING,W=2,H=0.6,name="btn_next",label="Next &gt;"},
+    }
+
+    if total == 0 then
+        table.insert(ui, {command="add", element="label", X=3, Y=3, label="No Items"})
+        digiline_send(SCREEN_REQUEST, ui)
+        return
+    end
+
+    local draw_i = 0
+    for i = start, finish do
+        local id = is_search and mem.SEARCH_IDX[i] or i
+        if id then
+            local qty = mem.TOTALS[id] or 0
+            if qty &gt; 0 then
+                local x = (draw_i % COLS) * (SIZE + GAP)
+                local y = math.floor(draw_i / COLS) * (SIZE + GAP) + TOP_PADDING
+
+                table.insert(ui, {
+                    command = "add",
+                    element = "item_image_button",
+                    X = x, Y = y,
+                    W = SIZE, H = SIZE,
+                    item_name = NAMES[id],
+                    name = "item_"..i,
+                    label = "x"..qty
+                })
+                draw_i = draw_i + 1
+            end
+        end
+    end
+
+    digiline_send(SCREEN_REQUEST, ui)
+end</pre>
+      </div>
+      <p>One full formspec-style command list, built from scratch and sent in a single <code>digiline_send</code> — there's no partial-update path, since digiline touchscreens don't support one. Two details worth noticing: an item with <code>TOTALS == 0</code> never gets a button at all (the <code>if qty &gt; 0 then</code> guard) — the remaining buttons close the gap rather than leaving an empty slot; and <code>draw_i</code>, not the loop index <code>i</code>, is what positions each button on the grid, which is exactly what keeps that gap-closing working.</p>
+    </section>
+
+    <section id="screens2">
+      <div class="tag">14</div>
+      <h2><span class="fn">draw_request_input</span> / <span class="fn">draw_request_screen</span> / <span class="fn">draw_stock_screen</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function draw_request_input()
+    digiline_send(SCREEN_REQUEST,{
+        {command="clear"},
+        {command="set",width=10,height=6,fixed_size=true},
+        {command="add",element="label",X=0.3,Y=0.2,label="Enter Quantity"},
+        {command="add",element="label",X=0.3,Y=0.8,label=NAMES[mem.SELECTED_ITEM]},
+        {command="add",element="field",X=0.3,Y=2.0,W=4,H=1,name="qty",label="Amount"},
+        {command="add",element="button",X=0.3,Y=3,W=2,H=0.7,name="confirm",label="Take"},
+        {command="add",element="button",X=2.6,Y=3,W=2,H=0.7,name="back",label="Back"},
+        {command="add",element="label",X=0.3,Y=4.2,label=mem.INPUT_ERROR},
+        {command="add",element="button",X=8,Y=0.2,W=2,H=0.6,name="btn_home",label="Home"},
+    })
+end
+
+local function draw_request_screen()
+    if mem.SELECTED_ITEM then
+        draw_request_input()
+    else
+        draw_request_list()
+    end
+end
+
+local function draw_stock_screen()
+    local total = #mem.OOS
+    local pages = math.max(1, math.ceil(total / ITEMS_PER_PAGE))
+    if mem.STOCK_PAGE &gt; pages then mem.STOCK_PAGE = pages end
+
+    local start = (mem.STOCK_PAGE - 1) * ITEMS_PER_PAGE + 1
+    local finish = math.min(start + ITEMS_PER_PAGE - 1, total)
+
+    local ui = {
+        {command="clear"},
+        {command="set",width=10,height=6,fixed_size=true},
+        {command="add",element="label",X=0.3,Y=0.0,label="Out Of Stock"},
+        {command="add",element="button",X=0.3,Y=6-BOTTOM_PADDING,W=2,H=0.6,name="btn_prev",label="&lt; Prev"},
+        {command="add",element="label",X=4.6,Y=6-BOTTOM_PADDING+0.1,label="Page "..mem.STOCK_PAGE.."/"..pages},
+        {command="add",element="button",X=10-2.3,Y=6-BOTTOM_PADDING,W=2,H=0.6,name="btn_next",label="Next &gt;"},
+    }
+
+    local y = 0.6
+    for i = start, finish do
+        local id = mem.OOS[i]
+        if id then
+            table.insert(ui, {
+                command = "add",
+                element = "label",
+                X = 0.3, Y = y,
+                label = NAMES[id].."  x0"
+            })
+            y = y + 0.5
+        end
+    end
+
+    digiline_send(SCREEN_STOCK, ui)
+end</pre>
+      </div>
+      <p><code>draw_request_screen</code> is the only place that decides which of the other two draws — whichever screen is showing at the moment is entirely determined by whether <code>mem.SELECTED_ITEM</code> is set. <code>draw_stock_screen</code> is the simpler of the two lists: plain text labels, one per out-of-stock item, no images or buttons beyond paging.</p>
+    </section>
+
+    <div class="divider-label">MASTER · MESSAGE HANDLING</div>
+
+    <section id="chest-msg">
+      <div class="tag">15</div>
+      <h2><span class="fn">handle_chest_msg</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function handle_chest_msg(channel, msg)
+    if type(channel) ~= "string" or string.sub(channel, 1, 1) ~= "c" then return end
+
+    local chest_num = tonumber(string.sub(channel, 2)) or 0
+    local m = msg
+
+    if type(m) == "table" then
+        local action = m.action
+        local stack = m.stack or m
+        local name = ""
+        local count = 1
+        local to_slot = m.to_slot
+
+        if type(stack) == "string" then
+            local n, q
+            local space = string.find(stack, " ", 1, true)
+            if space then
+                n = string.sub(stack, 1, space - 1)
+                q = string.sub(stack, space + 1)
+            else
+                n = stack
+            end
+            name = n or stack
+            count = tonumber(q) or 1
+        elseif type(stack) == "table" then
+            name = stack.name or ""
+            count = tonumber(stack.count) or 1
+            to_slot = to_slot or stack.to_slot
+        end
+
+        if name ~= "" and count &gt; 0 then
+            local id = ensure_id(name)
+            if action == "put" or action == "tput" or action == "uput" then
+                update_stock(chest_num, id, count, action, to_slot)
+            elseif action == "take" or action == "ttake" or action == "utake" then
+                update_stock(chest_num, id, -count, action, to_slot)
+            end
+        end
+    end
+end</pre>
+      </div>
+      <p>This only ever fires for channels starting with <code>"c"</code> — the chest number is just the rest of the channel name, turned into a number. The stack can arrive either as a plain string (<code>"itemname count"</code>) or a table with a <code>name</code>/<code>count</code> pair; both are handled. Anything that doesn't match — wrong channel, malformed message, unrecognised action — is silently ignored. There's no error path here on purpose: a chest report the script doesn't understand should do nothing, not crash the controller.</p>
+    </section>
+
+    <figure class="wide">
+      <img src="images/finalchest.jpg" alt="A dark storage-style chest with pipe connections on top and sides, out on its own">
+      <figcaption>The final chest. Whatever lands here gets a last decision: hand it to whoever asked from the touchscreen, or set it aside for a book order.</figcaption>
+    </figure>
+
+    <section id="book-parse">
+      <div class="tag">16</div>
+      <h2><span class="fn">queue_book_order</span></h2>
+      <p>A written book's order list looks like <code>"default:cobble 12 , default:dirt 10"</code>. This walks the string entirely by hand — no Lua patterns — trimming spaces manually on both sides of each split.</p>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>local function queue_book_order(text)
+    local pos = 1
+    local text_len = string.len(text)
+
+    while pos &lt;= text_len do
+        local comma = string.find(text, ",", pos, true)
+        local line
+        if comma then
+            line = string.sub(text, pos, comma - 1)
+            pos = comma + 1
+        else
+            line = string.sub(text, pos, text_len)
+            pos = text_len + 1
+        end
+
+        while string.sub(line, 1, 1) == " " do
+            line = string.sub(line, 2)
+        end
+        while string.sub(line, -1) == " " do
+            line = string.sub(line, 1, string.len(line) - 1)
+        end
+
+        if string.len(line) &gt; 0 then
+            local space = string.find(line, " ", 1, true)
+            if space then
+                local item = string.sub(line, 1, space - 1)
+                local qty_str = string.sub(line, space + 1)
+
+                while string.sub(qty_str, 1, 1) == " " do
+                    qty_str = string.sub(qty_str, 2)
+                end
+                while string.sub(qty_str, -1) == " " do
+                    qty_str = string.sub(qty_str, 1, string.len(qty_str) - 1)
+                end
+
+                local qty = tonumber(qty_str)
+                if item and string.len(item) &gt; 0 and qty and qty &gt; 0 then
+                    local id = mem.NAME_TO_ID[item]
+                    local truly_available = (mem.TOTALS[id] or 0) - (mem.PENDING_PULL[id] or 0)
+                    if id and truly_available &gt;= qty then
+                        table.insert(mem.BOOK_QUEUE, { name = item, count = qty })
+                    end
+                end
+            end
+        end
+    end
+end</pre>
+      </div>
+      <p>The outer loop splits on commas, one order line at a time. Each line gets trimmed, then split again on the first space into an item name and a quantity string, which also gets trimmed before <code>tonumber</code>. A line only gets queued if the item is known <em>and</em> there's truly enough left — not just in <code>TOTALS</code>, but after subtracting whatever's already reserved by <code>PENDING_PULL</code>.</p>
+      <div class="callout warn">
+        <span class="label">why PENDING_PULL exists</span>
+        <p><code>mem.TOTALS</code> only updates once a chest's own <em>take</em> report comes back — after a pull has already been sent, not before. Checking raw <code>TOTALS</code> alone leaves a short window where a second order for the same item can pass the check against stock that's already spoken for. <code>PENDING_PULL[id]</code> is incremented the instant a pull is dispatched (§18) and released the instant the chest confirms it (§11) — closing that window with one more small number, not a table of names.</p>
+      </div>
+      <p>A line that fails either check is simply never queued — no error, no partial-fulfilment note. The book itself always comes back regardless of how many lines succeeded.</p>
+    </section>
+
+    <div class="divider-label">MASTER · EVENT LOOP</div>
+
+    <section id="ev-program">
+      <div class="tag">17</div>
+      <h2><span class="fn">event.type == "program"</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>if event.type == "program" then
+    mem.TICK_PENDING = false
+
+    if not mem.INITIAL_DRAW_DONE then
+        draw_request_screen()
+        draw_stock_screen()
+        mem.INITIAL_DRAW_DONE = true
+    end
+end</pre>
+      </div>
+      <p>Fires once, whenever the controller is (re)programmed. Resetting <code>TICK_PENDING</code> is a safety net in case an edit landed mid-cycle and left it stuck true, which would otherwise silently stop every future <code>schedule_tick</code> call from doing anything. The two screens only get an initial draw the very first time this ever fires — after that, <code>INITIAL_DRAW_DONE</code> stops it from redrawing on every future re-program, since the tick loop and event handlers take over from there.</p>
+    </section>
+
+    <section id="ev-tick">
+      <div class="tag">18</div>
+      <h2><span class="fn">event.iid == "tick"</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>if event.type == "interrupt" and event.iid == "tick" then
+    mem.TICK_PENDING = false
+    mem.TICK_COUNT = mem.TICK_COUNT + 1
+
+    step_search()
+
+    if mem.NEEDS_REDRAW then
+        mem.NEEDS_REDRAW = false
+        if not mem.SELECTED_ITEM then draw_request_screen() end
+        draw_stock_screen()
+    end
+
+    if #mem.HEAL_QUEUE &gt; 0 then
+        local heal_id = table.remove(mem.HEAL_QUEUE, 1)
+        heal_item(heal_id)
+    end
+
+    if #mem.BOOK_QUEUE &gt; 0 then
+        local line = table.remove(mem.BOOK_QUEUE, 1)
+        local id = mem.NAME_TO_ID[line.name]
+        if id then
+            local chest_list = get_item_chest_list(id)
+            table.sort(chest_list, function(a, b) return a.num &gt; b.num end)
+            local amount_needed = line.count
+            for _, entry in ipairs(chest_list) do
+                local take_qty = math.min(amount_needed, entry.qty)
+                local inj_channel = "i" .. entry.num
+                mem.EXPECT_USER[id] = (mem.EXPECT_USER[id] or 0) + take_qty
+                mem.EXPECT_BOOK[id] = (mem.EXPECT_BOOK[id] or 0) + take_qty
+                mem.PENDING_PULL[id] = (mem.PENDING_PULL[id] or 0) + take_qty
+                digiline_send("main_to_filter", { target = inj_channel, payload = { name = line.name, count = take_qty } })
+                amount_needed = amount_needed - take_qty
+                if amount_needed &lt;= 0 then break end
+            end
+        end
+    end
+
+    if mem.SEARCH_ACTIVE or #mem.HEAL_QUEUE &gt; 0 or #mem.BOOK_QUEUE &gt; 0 or mem.NEEDS_REDRAW then
+        schedule_tick(0.4)
+    end
+end</pre>
+      </div>
+      <p>The heartbeat. Each firing: advances search by one chunk, redraws whichever screen changed, drains exactly <em>one</em> entry each from the heal queue and the book queue — never more, so a big order can't spike a single event's cost — and reschedules itself only if there's genuinely still work pending. When nothing's left, it simply stops rescheduling rather than idling forever.</p>
+      <p>The book-queue branch pulls from the highest-numbered chest holding stock downward (<code>a.num &gt; b.num</code>), tags the pull in three places at once — <code>EXPECT_USER</code> so the existing safety-buffer logic (§20) hands it off correctly, <code>EXPECT_BOOK</code> so the final-chest logic (§20) can tell it apart from a touchscreen delivery, and <code>PENDING_PULL</code> so a second order can't double-claim the same stock — and sends the pull itself through <code>main_to_filter</code>, since master isn't wired directly to the numbered injectors.</p>
+    </section>
+
+    <section id="ev-filter">
+      <div class="tag">19</div>
+      <h2><span class="fn">event.channel == "filter_to_main"</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>if event.channel == "filter_to_main" then
+    if type(event.msg) == "table" and event.msg.ch then
+        handle_chest_msg(event.msg.ch, event.msg.data)
+    end
+    return
+end</pre>
+      </div>
+      <p>Storage-chest reports arrive here, already relayed one at a time by the signal filter, wrapped as <code>{ch=, data=}</code>. This just unwraps and hands off to <code>handle_chest_msg</code> — master never listens to the raw <code>"c…"</code> channels directly.</p>
+    </section>
+
+    <section id="ev-book">
+      <div class="tag">20</div>
+      <h2><span class="fn">event.channel == "book"</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>if event.channel == "book" then
+    local book = event.msg
+
+    if type(book) == "table"
+    and book.name == "default:book_written"
+    and book.meta
+    and type(book.meta.text) == "string" then
+
+        local owner = book.meta.owner or ""
+
+        if ALLOWED_BOOK_PLAYERS[owner] then
+            queue_book_order(book.meta.text)
+            schedule_tick(0.1)
+        end
+
+        mem.BOOK_PENDING_RETURN = mem.BOOK_PENDING_RETURN + 1
+    end
+    return
+end</pre>
+      </div>
+      <p>Fires when a written book passes the intake tube. The condition checks it's actually a written book carrying real text before doing anything else. If <code>book.meta.owner</code> is in <code>ALLOWED_BOOK_PLAYERS</code>, the order gets parsed and queued; either way — permission or not — a return is recorded in <code>BOOK_PENDING_RETURN</code>. The book itself isn't ejected here: it hasn't physically reached the final chest yet at the moment this fires, so trying to eject it now would just fail against an empty slot. It's ejected later, in §20's twin below, the moment it actually arrives.</p>
+    </section>
+
+    <section id="ev-final">
+      <div class="tag">21</div>
+      <h2><span class="fn">event.channel == "final"</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>if event.channel == "final" then
+    local msg = event.msg
+    local name, qty = "", 0
+
+    if type(msg) == "table" and msg.action then
+        if msg.action == "take" or msg.action == "ttake" or msg.action == "utake" then
+            return
+        end
+    end
+
+    <span style="color:var(--ink-faint);font-style:italic;">-- (name/qty parsing, identical shape to handle_chest_msg, omitted here for length)</span>
+
+    if name == "default:book_written" then
+        if mem.BOOK_PENDING_RETURN &gt; 0 then
+            mem.BOOK_PENDING_RETURN = mem.BOOK_PENDING_RETURN - 1
+        end
+        digiline_send("final_book", name .. " " .. qty)
+        return
+    end
+
+    if name ~= "" and qty &gt; 0 then
+        local id = mem.NAME_TO_ID[name]
+        local book_amt = id and (mem.EXPECT_BOOK[id] or 0) or 0
+
+        if book_amt &gt; 0 then
+            local take = math.min(book_amt, qty)
+            mem.EXPECT_BOOK[id] = book_amt - take
+            if mem.EXPECT_BOOK[id] &lt;= 0 then mem.EXPECT_BOOK[id] = nil end
+            digiline_send("final_book", name .. " " .. take)
+
+            local leftover = qty - take
+            if leftover &gt; 0 then
+                digiline_send("final_inj", name .. " " .. leftover)
+            end
+        else
+            digiline_send("final_inj", name .. " " .. qty)
+        end
+    end
+    return
+end</pre>
+      </div>
+      <p>A <em>take</em> report on this channel means an earlier ejection from this same chest is being echoed back — ignored immediately, or it would get reprocessed as a fresh arrival. Once parsed, there are exactly two outcomes: if the arriving item is the book itself, it goes straight out <code>final_book</code>, no further checks. Otherwise, <code>EXPECT_BOOK</code> decides the split — whatever portion of the arriving stack was reserved for a book order gets peeled off toward <code>final_book</code> first, and anything left over is treated as a touchscreen delivery and sent out <code>final_inj</code>.</p>
+      <p>Note both outbound sends here go directly to <code>final_book</code>/<code>final_inj</code>, not through <code>main_to_filter</code> — since master already receives this channel's reports directly, it's wired to reach those two injectors directly too, unlike the numbered storage injectors.</p>
+    </section>
+
+    <section id="ev-safety">
+      <div class="tag">22</div>
+      <h2><span class="fn">event.channel</span> starts with <span class="fn">"safety"</span></h2>
+      <div class="code">
+        <div class="filehead"><span>master.lua</span></div>
+        <pre>if type(event.channel) == "string" and string.sub(event.channel, 1, 6) == "safety" then
+    local chest_name = event.channel
+    local my_out_injector = chest_name .. "_out"
+    local my_heal_injector = chest_name .. "_heal"
+
+    <span style="color:var(--ink-faint);font-style:italic;">-- toverflow guard, take-echo guard, name/qty parsing (same shape as above)</span>
+
+    if name ~= "" and qty &gt; 0 then
+        local id = ensure_id(name)
+        local user_needs = mem.EXPECT_USER[id] or 0
+
+        if user_needs &gt; 0 then
+            local give = math.min(user_needs, qty)
+            mem.EXPECT_USER[id] = user_needs - give
+            if mem.EXPECT_USER[id] &lt;= 0 then mem.EXPECT_USER[id] = nil end
+            digiline_send(my_out_injector, {name = name, count = give})
+
+            local left = qty - give
+            if left &gt; 0 then
+                if mem.EXPECT_HEAL[id] then
+                    mem.EXPECT_HEAL[id] = mem.EXPECT_HEAL[id] - left
+                    if mem.EXPECT_HEAL[id] &lt;= 0 then mem.EXPECT_HEAL[id] = nil end
+                    mem.HEAL_INCOMING[id] = (mem.HEAL_INCOMING[id] or 0) + left
+                end
+                digiline_send(my_heal_injector, {name = name, count = left})
+            end
+        else
+            if mem.EXPECT_HEAL[id] then
+                mem.EXPECT_HEAL[id] = mem.EXPECT_HEAL[id] - qty
+                if mem.EXPECT_HEAL[id] &lt;= 0 then mem.EXPECT_HEAL[id] = nil end
+                mem.HEAL_INCOMING[id] = (mem.HEAL_INCOMING[id] or 0) + qty
+            end
+            digiline_send(my_heal_injector, {name = name, count = qty})
+        end
+    end
+    return
+end</pre>
+      </div>
+      <p>The original delivery path, unchanged by any of the book-ordering work built on top of it — book orders simply feed <code>EXPECT_USER</code> the same way a touchscreen Take already did. Outstanding need is served first, up to what actually arrived; anything beyond that is routed for healing, with <code>HEAL_INCOMING</code> set so <code>update_stock</code>'s bounce check (§11) knows to watch for it landing correctly.</p>
+    </section>
+
+    <section id="ev-screens">
+      <div class="tag">23</div>
+      <h2><span class="fn">event.channel == SCREEN_REQUEST</span> / <span class="fn">SCREEN_STOCK</span></h2>
+      <p>The remaining two branches handle button presses from the touchscreens: paging, entering a search query, selecting an item, and — on <code>confirm</code> — sorting that item's chests from highest-numbered to lowest and pulling from each in turn until the requested amount is covered, tagging <code>EXPECT_USER</code> for each pull exactly the way the book queue does, and sending every pull through <code>main_to_filter</code>. This is the one path in the whole script never touched while any of the book-ordering work was added.</p>
+    </section>
+
+    <figure class="wide">
+      <img src="images/safetyunit.jpg" alt="A LuaController unit connected into the tube network">
+      <figcaption>One of the safety-buffer units — the decision point between "give it to whoever's waiting" and "put it back for healing."</figcaption>
+    </figure>
+
+    <div class="divider-label">SIGNAL FILTER</div>
+
+    <section id="filter-full">
+      <div class="tag">24</div>
+      <h2>The whole script</h2>
+      <p>Deliberately the smallest file in the system. It holds no state between messages, uses no interrupts, and does exactly one thing.</p>
+      <div class="code">
+        <div class="filehead"><span>signal_filter.lua</span><span>complete</span></div>
+        <pre>if event.type == "digiline" then
+    local ch = event.channel
+
+    if type(ch) == "string" and string.sub(ch, 1, 1) == "c" then
+        local is_overflow = false
+        if type(event.msg) == "string" and event.msg == "toverflow" then
+            is_overflow = true
+        elseif type(event.msg) == "table" and event.msg.action == "toverflow" then
+            is_overflow = true
+        end
+
+        if not is_overflow then
+            digiline_send("filter_to_main", { ch = ch, data = event.msg })
+        end
+    end
+end</pre>
+      </div>
+      <p>Read top to bottom: only <code>digiline</code> events are handled at all — there's no <code>tick</code>, no <code>program</code> branch, nothing else in this file. Only channels starting with <code>"c"</code> are looked at; every other channel in the system — <code>book</code>, <code>final</code>, <code>safety…</code>, the two screens, <code>main_to_filter</code> — passes straight through this controller without triggering anything, because nothing here is listening for them. A <code>toverflow</code> message (a tube reporting it couldn't push an item anywhere) is filtered out rather than relayed, since it's noise master has no use for. Everything else gets repackaged as <code>{ch=, data=}</code> and sent to <code>filter_to_main</code>, immediately, in the same event — no batching, no delay.</p>
+      <div class="callout good">
+        <span class="label">why this can't loop</span>
+        <p>This controller listens on <code>"c*"</code> and speaks on exactly one channel, <code>filter_to_main</code> — and nothing in the system listens on <code>filter_to_main</code> except master. Since the channel it listens on and the channel it speaks on never overlap, there's no message this filter could ever send that would come back around and trigger itself again. That's a structural guarantee, not a matter of being careful with the code.</p>
+      </div>
+      <div class="callout warn">
+        <span class="label">the tradeoff</span>
+        <p>Without an interrupt, this filter can't hold multiple messages and combine them into one batch — each chest report costs master one event, the same as if the chests were wired to master directly. What the filter still buys is the physical separation itself: master's own wiring never has to reach the whole chest array, only this one controller. If message volume ever became the bottleneck again, closing that gap would require bringing back a timed batch — which needs an interrupt, and was ruled out deliberately here in favor of having nothing that could misfire.</p>
+      </div>
+    </section>
+
+    <div class="divider-label">CLOSING</div>
+
+    <section id="budget">
+      <div class="tag">25</div>
+      <h2>The memory budget</h2>
+      <figure>
+        <img src="images/probe.jpg" alt="A debug probe reading REAL mem 0/100000 bytes, REAL heat 0/20, code length 28331 bytes on a burnt luacontroller">
+        <figcaption>A probe reading against this exact controller. Mesecons enforces two independent ceilings — a heat limit for how often the controller runs, and a separate 100,000-byte limit on the saved mem table shown here.</figcaption>
+      </figure>
+      <p>Mesecons caps a LuaController's saved <code>mem</code> table at 100,000 bytes by default. Cross it and the controller doesn't just refuse to save — it overheats. Every packing decision on this page exists to push more unique items under that same ceiling without changing what the system does from the outside.</p>
+      <table class="fields">
+        <tr><th>choice</th><th>saves</th></tr>
+        <tr><td>integer ids instead of name strings as keys</td><td>a full item name's length, on every table otherwise keyed by name</td></tr>
+        <tr><td>one persisted name table, one rebuilt locally</td><td>every item name's length, a second time over</td></tr>
+        <tr><td>packed chest strings</td><td>nested-table overhead — one sub-table per chest, per item</td></tr>
+        <tr><td>packed slot-tracker strings</td><td>three repeated field names, per tracked slot entry</td></tr>
+        <tr><td>STATUS memoization</td><td>not bytes — instruction budget: skips re-running the stackability check forever, once decided</td></tr>
+        <tr><td>PENDING_PULL</td><td>not memory either — closes a real race window with one small number per reserved item, instead of a name-keyed table</td></tr>
+      </table>
+      <p>None of it is visible from outside the controller. The touchscreen, the book, and the chests all behave exactly as if the data were stored the simple way — the packing only exists at the boundary between memory and everything else.</p>
+    </section>
+
+    <footer>
+      Written against the live master.lua and signal_filter.lua scripts for this build. Screenshots are of the actual chest array, injector rows, and controller units in world.
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>
